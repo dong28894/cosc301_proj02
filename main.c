@@ -106,6 +106,7 @@ void changeMode(char **cmd, bool *newMode, bool parallel){
 }
 
 struct path *process_data(FILE *input_file) {
+	//Parse configuration file to generate a linked list of PATH variables
 	char line[255];	
 	struct path *head = NULL;
 	while (fgets(line, 255, input_file) != NULL){		
@@ -197,9 +198,13 @@ bool builtIn(int i, char ***cmdArr, struct process *jobs, bool *newMode, bool pa
 			printf("Command does not exist\n");
 		}else{
 			int pid = atoi(cmdArr[i][1]);
-			kill(pid, SIGSTOP);
 			struct process *curr = proc_find(pid, jobs);
-			curr->running = false;
+			if (curr == NULL){
+				printf("No process with that pid\n");
+			}else{
+				kill(pid, SIGSTOP);			
+				curr->running = false;
+			}
 		}
 		return true;
 	}else if (strcasecmp(cmdArr[i][0], "resume") == 0){
@@ -207,9 +212,13 @@ bool builtIn(int i, char ***cmdArr, struct process *jobs, bool *newMode, bool pa
 			printf("Command does not exist\n");
 		}else{
 			int pid = atoi(cmdArr[i][1]);
-			kill(pid, SIGCONT);
 			struct process *curr = proc_find(pid, jobs);
-			curr->running = true;
+			if (curr == NULL){
+				printf("No process with that pid\n");
+			}else{
+				kill(pid, SIGCONT);			
+				curr->running = true;
+			}
 		}
 		return true;
 	}else{
@@ -219,12 +228,17 @@ bool builtIn(int i, char ***cmdArr, struct process *jobs, bool *newMode, bool pa
 
 int main(int argc, char **argv) {
 	FILE *datafile = NULL;
-	bool parallel = false;
+	bool parallel = false; //mode of the shell
 	char *prompt = "Dong's Shell>";
 	char buffer[1024];
-	datafile = fopen("shell-config", "r");  		 
-	struct process *jobs = NULL; 
-	struct path *config = process_data(datafile);
+	datafile = fopen("shell-config", "r"); 
+	struct path *config; //PATH variable
+	if (datafile == NULL) {
+    	config = NULL;
+    }else{
+		config = process_data(datafile);
+	} 		 
+	struct process *jobs = NULL; //list of currently running processes
 	fclose(datafile);
 	printf("%s", prompt);
 	fflush(stdout);		
@@ -237,7 +251,8 @@ int main(int argc, char **argv) {
 		bool exitShell = false;
 		while (cmdArr[i] != NULL){
 			builtInCmd = builtIn(i, cmdArr, jobs, &newMode, parallel, &exitShell);		
-			if (!builtInCmd){		
+			if (!builtInCmd){
+				//If the command is not built-in		
 				fileSearch(&cmdArr[i][0], config);		
 				int pid = fork();
 				if (pid == 0){					
@@ -255,6 +270,7 @@ int main(int argc, char **argv) {
 			}
 			i++;
 		}		
+		//Free array of commands
 		int j = 0;
 		int k = 0;
 		while (cmdArr[j] != NULL){
@@ -266,12 +282,16 @@ int main(int argc, char **argv) {
 			j++;
 			k = 0;
 		}
-		free(cmdArr);	
-		if (newMode){
-			parallel = true;
-		}else{
-			parallel = false;
+		free(cmdArr);
+		//Change mode, block mode change while there are background processes
+		if (jobs == NULL){	
+			if (newMode){
+				parallel = true;
+			}else{
+				parallel = false;
+			}
 		}
+		//Exit shell
 		if (exitShell){			
 			path_clear(config);
 			exit(0);
@@ -279,11 +299,13 @@ int main(int argc, char **argv) {
 			printf("%s", prompt);
 			fflush(stdout);
 		}
+		//Constantly check for input and dead children
 		if (parallel && jobs != NULL){
 			checkPoll(&jobs);
 		}
 	}	
 	path_clear(config);
+	printf("\n");
     return 0;
 }
 
