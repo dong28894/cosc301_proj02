@@ -36,6 +36,9 @@ char** parseCmd(const char *s) {
 		count++;
         tok = strtok(NULL, " \n\t");        
     }
+	if (count == 0){
+		return NULL;
+	}
     char **ptr = malloc((count+1)*sizeof(char*));
     tok = strtok(str2, " \n\t");
     for (int i = 0; i < count; i++){
@@ -227,9 +230,6 @@ int main(int argc, char **argv) {
 	fflush(stdout);		
 	while (fgets(buffer, 1024, stdin) != NULL){
 		delComment(buffer);
-		if (strlen(buffer) == 1){
-			continue;
-		}
 		char ***cmdArr = separateCmds(buffer);
 		int i = 0;
 		bool builtInCmd;
